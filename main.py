@@ -1,14 +1,26 @@
 import pygame
 import sys
+from random import randint
 
 pygame.init()
+pygame.font.init()
 
 SCREEN_WIDTH, SCREEN_HEIGHT = 640, 440
 
 pygame.display.set_caption("Numworks Zombies Remastered")
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
+font = pygame.font.Font("data/font.otf", 30)
 
 clock = pygame.time.Clock()
+
+pygame.mixer.music.load("data/metal_song.wav")
+
+sfx = {
+    "shotgun_shoot": pygame.mixer.Sound("data/sfx/shotgun_sfx.wav")
+}
+
+bgColor = [120, 200, 250]
+totalBgColor = bgColor[0] + bgColor[1] + bgColor[2]
 
 keydown = {
     "UP": False,
@@ -24,6 +36,7 @@ class Entity:
         self.spriteDirectory = spriteDirectory
         self.pos = pos
         self.color = color # only use when no sprites
+        self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
 
     def display(self):
         if self.spriteDirectory != None:
@@ -32,24 +45,41 @@ class Entity:
             e_img.set_colorkey((255, 255, 255))
             screen.blit(e_img, (self.pos[0], self.pos[1]))
         else:
-            e_img = pygame.draw.rect(screen, self.color, pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5))
-
+            e_img = pygame.draw.rect(screen, self.color, self.rect)
 
     def updateVelocity(self, velocity=[0, 0]):
         self.pos[0] += velocity[0]
         self.pos[1] += velocity[1]
+    
+    def updateRect(self):
+        self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
 
 
 player = Entity((6, 9), "data/sprites/player_right.png", [150, 150])
 playerDirection = "r" #u, d, r, l for respectively up, down, right, left
+score = 0
+alive = True
 PLAYER_MAX_SPEED = 7
 
 bullets = []
 bulletNumber = 0
+bulletDirection = []
+BULLET_SPEED = 9
 
 enemies = []
-enemies.append(Entity((6, 9), "data/sprites/zombie.png", [50, 50]))
+enemiesHealth = []
+ZOMBIE_SPEED = 0.75
+enemiesSpawnAreas = [[[0, SCREEN_WIDTH], [-50, -50]], [[SCREEN_WIDTH+50, SCREEN_WIDTH+50], [0, SCREEN_HEIGHT]], [[0, SCREEN_WIDTH], [SCREEN_HEIGHT+50, SCREEN_HEIGHT+50]], [[-50, -50], [0, SCREEN_HEIGHT]]] # top, right, bottom, left
 
+def initEnemies():
+    for i in range(8):
+        enemies.append(Entity((6, 9), "data/sprites/zombie.png", [-50, -50]))
+        enemiesHealth.append(10)
+        enemySpawn(i)
+
+def displayScore():
+    scoreSurf = font.render("Score: " + str(score), False, (0, 0, 0))
+    screen.blit(scoreSurf, (0, 0))
 
 def playerMovement():
     global playerVelocity, playerDirection
@@ -67,40 +97,161 @@ def playerMovement():
     if keydown["LEFT"]:
         player.updateVelocity([-PLAYER_MAX_SPEED, 0])
         playerDirection = "l"
-    if keydown["ENTER"]:
-        bulletNumber += 1
-        shootBullet(bulletNumber - 1)
+        
+def shootBullet(index):
+    bullets.append(Entity((2, 2), None, [player.rect.centerx, player.rect.centery], (255, 0, 0)))
+    bulletDirection.append(playerDirection)
+    bullets[index].rect.center = player.rect.center
 
-def shootBullet(bulletIndex):
-    bullets.append(Entity((2, 2), None, [player.pos[0], player.pos[1]], (255, 0, 0)))
-    for i in range(bulletNumber-1):
-        bullets[bulletNumber-1].display()
+def bulletMovement(index):
+    global bulletNumber
 
-while True:
-    screen.fill((255, 255, 255))
+    if bulletDirection[index] == "u": bullets[index].pos[1] -= BULLET_SPEED
+    if bulletDirection[index] == "r": bullets[index].pos[0] += BULLET_SPEED
+    if bulletDirection[index] == "d": bullets[index].pos[1] += BULLET_SPEED 
+    if bulletDirection[index] == "l": bullets[index].pos[0] -= BULLET_SPEED
+
+    # despawns bullets when they go outside of the screen. need to make it work
+    # if bullets[index].pos[0] > SCREEN_WIDTH + 20 or bullets[index].pos[0] < 0 or bullets[index].pos[1] > SCREEN_HEIGHT + 20 or bullets[index].pos[1] < 0:
+    
+def enemySpawn(index):
+    global enemiesHealth
+
+    area = randint(0, 3)
+    randomSpawnX = randint(enemiesSpawnAreas[area][0][0], enemiesSpawnAreas[area][0][1])
+    randomSpawnY = randint(enemiesSpawnAreas[area][1][0], enemiesSpawnAreas[area][1][1])
+    enemiesHealth[index] = 1 + score/100
+
+    enemies[index].pos[0] = randomSpawnX
+    enemies[index].pos[1] = randomSpawnY
+
+def enemyMovement(index):
+    if enemies[index].rect.left <= player.rect.left: enemies[index].updateVelocity([ZOMBIE_SPEED, 0])
+    else: enemies[index].updateVelocity([-ZOMBIE_SPEED, 0])
+    if enemies[index].rect.top < player.rect.top: enemies[index].updateVelocity([0, ZOMBIE_SPEED])
+    else: enemies[index].updateVelocity([0, -ZOMBIE_SPEED])
+
+def changeBackgroundColor():
+    bgColor[0] += randint(-2, 2)
+    if bgColor[0] > 254: bgColor[0] = 254
+    elif bgColor[0] < 100: bgColor[0] = 100
+
+    bgColor[1] += randint(-2, 2)
+    if bgColor[1] > 254: bgColor[1] = 254
+    elif bgColor[1] < 100: bgColor[1] = 100
+
+    bgColor[2] += randint(-2, 2)
+    if bgColor[2] > 254: bgColor[2] = 254
+    elif bgColor[2] < 100: bgColor[2] = 100
+
+initEnemies()
+
+pygame.mixer.music.play(-1)
+
+def run():
+    global alive, bulletNumber, score
+
+    while alive:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    pygame.quit()
+                    sys.exit()
+
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_UP: keydown["UP"] = True
+                    if event.key == pygame.K_RIGHT: keydown["RIGHT"] = True
+                    if event.key == pygame.K_DOWN: keydown["DOWN"] = True
+                    if event.key == pygame.K_LEFT: keydown["LEFT"] = True
+                    if event.key == pygame.K_KP_ENTER:
+                        keydown["ENTER"] = True
+                        bulletNumber += 1
+                        shootBullet(bulletNumber - 1)
+                        sfx["shotgun_shoot"].play()
+                if event.type == pygame.KEYUP:
+                    if event.key == pygame.K_UP: keydown["UP"] = False
+                    if event.key == pygame.K_RIGHT: keydown["RIGHT"] = False
+                    if event.key == pygame.K_DOWN: keydown["DOWN"] = False
+                    if event.key == pygame.K_LEFT: keydown["LEFT"] = False
+                    if event.key == pygame.K_KP_ENTER: keydown["ENTER"] = False
+                
+
+            screen.fill(bgColor)
+            changeBackgroundColor()
+
+            playerMovement()
+            
+            player.display()
+            player.updateRect()
+            displayScore()
+
+            for i in range(len(bullets)):
+                bullets[i].updateRect()
+                bullets[i].display()
+                bulletMovement(i)
+                
+                for j in range(len(enemies)):
+                    if bullets[i].rect.colliderect(enemies[j]):
+                        score += 1
+                        enemiesHealth[j] -= 1
+                        
+                        if enemiesHealth[j] <= 0:
+                            score += 100
+                            enemySpawn(j)
+
+            for i in range(len(enemies)):
+                enemies[i].updateRect()
+                enemyMovement(i)
+                enemies[i].display()
+
+                if enemies[i].rect.colliderect(player):
+                    alive = False
+                    pygame.mixer.music.stop()
+                    pygame.mixer.music.load("data/sad_music.wav")
+                    pygame.mixer.music.play(-1, 0, 1500)
+
+            pygame.display.update()
+            clock.tick(60)
+
+def death():
+    global score, alive, bulletNumber
+    global bullets, enemies, enemiesHealth
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
-
         if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_UP: keydown["UP"] = True
-            if event.key == pygame.K_RIGHT: keydown["RIGHT"] = True
-            if event.key == pygame.K_DOWN: keydown["DOWN"] = True
-            if event.key == pygame.K_LEFT: keydown["LEFT"] = True
-            if event.key == pygame.K_KP_ENTER: keydown["ENTER"] = True
-        if event.type == pygame.KEYUP:
-            if event.key == pygame.K_UP: keydown["UP"] = False
-            if event.key == pygame.K_RIGHT: keydown["RIGHT"] = False
-            if event.key == pygame.K_DOWN: keydown["DOWN"] = False
-            if event.key == pygame.K_LEFT: keydown["LEFT"] = False
-            if event.key == pygame.K_KP_ENTER: keydown["ENTER"] = False
-            
+            if event.key == pygame.K_KP_ENTER:
+                score = 0
+                alive = True
+                bulletNumber = 0
+                bullets = []
+                enemies = []
+                enemiesHealth = []
+                initEnemies()
 
-    playerMovement()
+                player.pos = [150, 150]
+                keydown["UP"] = False
+                keydown["RIGHT"] = False
+                keydown["DOWN"] = False
+                keydown["LEFT"] = False
+                keydown["ENTER"] = False
 
-    player.display()
+                pygame.mixer.stop()
+                pygame.mixer.music.load("data/metal_song.wav")
+                pygame.mixer.music.play(-1, 0, 1500)
+
+                run()
+
+    screen.fill((255, 0, 0))
+    screen.blit(font.render("You died", False, (0, 0, 0)), (SCREEN_WIDTH/2-120, SCREEN_HEIGHT/2))
+    screen.blit(font.render("Press ENTER to try again", False, (0, 0, 0)), (20, SCREEN_HEIGHT/2+35))
+    displayScore()
 
     pygame.display.update()
-    clock.tick(60)
+    clock.tick(20)
+
+while True:
+    run()
+
+    death()
