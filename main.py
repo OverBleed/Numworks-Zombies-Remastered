@@ -213,7 +213,7 @@ def run():
             clock.tick(60)
 
 def death():
-    global score, alive, bulletNumber
+    global score, alive, bulletNumber, bulletDirection
     global bullets, enemies, enemiesHealth
 
     for event in pygame.event.get():
@@ -226,6 +226,7 @@ def death():
                 alive = True
                 bulletNumber = 0
                 bullets = []
+                bulletDirection = []
                 enemies = []
                 enemiesHealth = []
                 initEnemies()
