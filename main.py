@@ -12,11 +12,14 @@ screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
 font = pygame.font.Font("data/font.otf", 30)
 
 clock = pygame.time.Clock()
+pygame.mixer.music.set_volume(0.5)
 
 pygame.mixer.music.load("data/metal_song.wav")
 
 sfx = {
-    "shotgun_shoot": pygame.mixer.Sound("data/sfx/shotgun_sfx.wav")
+    "shotgun_shoot": pygame.mixer.Sound("data/sfx/shotgun/shotgun_shoot.wav"),
+    "shotgun_reload": pygame.mixer.Sound("data/sfx/shotgun/shotgun_reload.wav"),
+    "shotgun_rakk": pygame.mixer.Sound("data/sfx/shotgun/shotgun_rakk.wav")
 }
 
 bgColor = [120, 200, 250]
@@ -54,9 +57,67 @@ class Entity:
     def updateRect(self):
         self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
 
+class Gun:
+    def __init__(self, ammoCapacity, baseDamage, waitTimeMinutes, reloadTimeMinutes, shoot, reload, rakk):
+        self.ammoCapacity = ammoCapacity
+        self.baseDamage = baseDamage
+        self.ammo = ammoCapacity # current ammo in magazine. Max by default
+
+        self.waitTimeFrames = waitTimeMinutes * 60 # time to wait between every shot
+        self.wait = 0 # current time to wait before firing
+
+        self.reloadTimeSeconds = reloadTimeMinutes * 60 # time to reload
+        self.waitReload = self.reloadTimeSeconds # time left while reloading
+
+        self.shoot_sfx = shoot
+        self.reload_sfx = reload
+        self.rakk_sfx = rakk
+
+        self.canShoot = True
+        self.isReloading = False
+
+    def shoot(self, bulletIndex):
+        if self.canShoot == True and keydown["ENTER"] == True:
+            self.shoot_sfx.play()
+            self.ammo -= 1 # removes 1 bullet from magazine
+
+            # process of shooting the bullet
+            bullets.append(Entity((2, 2), None, [player.rect.centerx, player.rect.centery], (255, 0, 0)))
+            bulletDirection.append(playerDirection)
+            bullets[bulletIndex].rect.center = player.rect.center
+
+            self.wait = self.waitTimeFrames
+            self.canShoot = False
+
+            self.rakk_sfx.play()
+
+    def canShootFunc(self):
+        self.wait -= 1
+        if self.isReloading: self.waitReload -= 1
+
+        if self.wait <= 0 and self.ammo > 0: 
+            self.canShoot = True
+        
+        if self.waitReload <= 0:
+            self.rakk_sfx.play()
+            self.ammo = self.ammoCapacity
+            self.waitReload = self.reloadTimeSeconds
+            self.isReloading = False
+
+    def reload(self):
+        if self.isReloading == False:
+            self.reload_sfx.play()
+            self.isReloading = True
+        
+
+weapons = {
+    "shotgun": Gun(7, 20, 1, 3, sfx["shotgun_shoot"], sfx["shotgun_reload"], sfx["shotgun_rakk"])
+}
+
 
 player = Entity((6, 9), "data/sprites/player_right.png", [150, 150])
 playerDirection = "r" #u, d, r, l for respectively up, down, right, left
+gunEquipped = weapons["shotgun"]
 score = 0
 alive = True
 PLAYER_MAX_SPEED = 7
@@ -64,6 +125,7 @@ PLAYER_MAX_SPEED = 7
 bullets = []
 bulletNumber = 0
 bulletDirection = []
+bulletDamage = []
 BULLET_SPEED = 9
 
 enemies = []
@@ -81,6 +143,10 @@ def displayScore():
     scoreSurf = font.render("Score: " + str(score), False, (0, 0, 0))
     screen.blit(scoreSurf, (0, 0))
 
+def displayAmmo():
+    ammoLeftSurf = font.render(str(gunEquipped.ammo) + "/" + str(gunEquipped.ammoCapacity), False, (0, 0, 0))
+    screen.blit(ammoLeftSurf, (0, 35))
+
 def playerMovement():
     global playerVelocity, playerDirection
     global bulletNumber
@@ -97,11 +163,6 @@ def playerMovement():
     if keydown["LEFT"]:
         player.updateVelocity([-PLAYER_MAX_SPEED, 0])
         playerDirection = "l"
-        
-def shootBullet(index):
-    bullets.append(Entity((2, 2), None, [player.rect.centerx, player.rect.centery], (255, 0, 0)))
-    bulletDirection.append(playerDirection)
-    bullets[index].rect.center = player.rect.center
 
 def bulletMovement(index):
     global bulletNumber
@@ -164,9 +225,8 @@ def run():
                     if event.key == pygame.K_LEFT: keydown["LEFT"] = True
                     if event.key == pygame.K_KP_ENTER:
                         keydown["ENTER"] = True
-                        bulletNumber += 1
-                        shootBullet(bulletNumber - 1)
-                        sfx["shotgun_shoot"].play()
+                        if gunEquipped.ammo > 0: gunEquipped.shoot(bulletNumber - 1)
+                        else: gunEquipped.reload()
                 if event.type == pygame.KEYUP:
                     if event.key == pygame.K_UP: keydown["UP"] = False
                     if event.key == pygame.K_RIGHT: keydown["RIGHT"] = False
@@ -183,7 +243,12 @@ def run():
             player.display()
             player.updateRect()
             displayScore()
+            displayAmmo()
 
+            gunEquipped.canShootFunc()
+
+
+            # detects collisions and shows bullet. Doesn't need to be in a function
             for i in range(len(bullets)):
                 bullets[i].updateRect()
                 bullets[i].display()
@@ -232,6 +297,9 @@ def death():
                 initEnemies()
 
                 player.pos = [150, 150]
+                gunEquipped.ammo = gunEquipped.ammoCapacity
+                gunEquipped.isReloading = False
+
                 keydown["UP"] = False
                 keydown["RIGHT"] = False
                 keydown["DOWN"] = False
