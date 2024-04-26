@@ -5,7 +5,7 @@ from random import randint
 pygame.init()
 pygame.font.init()
 
-SCREEN_WIDTH, SCREEN_HEIGHT = 640, 440
+SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
 
 pygame.display.set_caption("Numworks Zombies Remastered")
 screen = pygame.display.set_mode((SCREEN_WIDTH, SCREEN_HEIGHT))
@@ -111,7 +111,7 @@ class Gun:
         
 
 weapons = {
-    "shotgun": Gun(7, 20, 1, 3, sfx["shotgun_shoot"], sfx["shotgun_reload"], sfx["shotgun_rakk"])
+    "shotgun": Gun(7, 5, 1, 3, sfx["shotgun_shoot"], sfx["shotgun_reload"], sfx["shotgun_rakk"])
 }
 
 
@@ -134,7 +134,7 @@ ZOMBIE_SPEED = 0.75
 enemiesSpawnAreas = [[[0, SCREEN_WIDTH], [-50, -50]], [[SCREEN_WIDTH+50, SCREEN_WIDTH+50], [0, SCREEN_HEIGHT]], [[0, SCREEN_WIDTH], [SCREEN_HEIGHT+50, SCREEN_HEIGHT+50]], [[-50, -50], [0, SCREEN_HEIGHT]]] # top, right, bottom, left
 
 def initEnemies():
-    for i in range(8):
+    for i in range(24):
         enemies.append(Entity((6, 9), "data/sprites/zombie.png", [-50, -50]))
         enemiesHealth.append(10)
         enemySpawn(i)
@@ -257,7 +257,7 @@ def run():
                 for j in range(len(enemies)):
                     if bullets[i].rect.colliderect(enemies[j]):
                         score += 1
-                        enemiesHealth[j] -= 1
+                        enemiesHealth[j] -= gunEquipped.baseDamage
                         
                         if enemiesHealth[j] <= 0:
                             score += 100
