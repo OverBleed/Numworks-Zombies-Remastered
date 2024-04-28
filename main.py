@@ -22,6 +22,13 @@ sfx = {
     "shotgun_rakk": pygame.mixer.Sound("data/sfx/shotgun/shotgun_rakk.wav")
 }
 
+sprites = {
+    "player": "data/sprites/player.png",
+    "zombie": "data/sprites/zombie.png",
+    "bullet": "data/sprites/bullet.png",
+    "shotgun": "data/sprites/shotgun.png"
+}
+
 bgColor = [120, 200, 250]
 totalBgColor = bgColor[0] + bgColor[1] + bgColor[2]
 
@@ -58,7 +65,7 @@ class Entity:
         self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
 
 class Gun:
-    def __init__(self, ammoCapacity, baseDamage, waitTimeMinutes, reloadTimeMinutes, shoot, reload, rakk):
+    def __init__(self, ammoCapacity, baseDamage, waitTimeMinutes, reloadTimeMinutes, sprite, shoot, reload, rakk):
         self.ammoCapacity = ammoCapacity
         self.baseDamage = baseDamage
         self.ammo = ammoCapacity # current ammo in magazine. Max by default
@@ -68,6 +75,11 @@ class Gun:
 
         self.reloadTimeSeconds = reloadTimeMinutes * 60 # time to reload
         self.waitReload = self.reloadTimeSeconds # time left while reloading
+
+        self.sprite = sprite
+        self.img = pygame.image.load(self.sprite)
+        self.img.set_colorkey((255, 255, 255))
+        self.rect = self.img.get_rect()
 
         self.shoot_sfx = shoot
         self.reload_sfx = reload
@@ -82,7 +94,7 @@ class Gun:
             self.ammo -= 1 # removes 1 bullet from magazine
 
             # process of shooting the bullet
-            bullets.append(Entity((2, 2), None, [player.rect.centerx, player.rect.centery], (255, 0, 0)))
+            bullets.append(Entity((2, 2), "data/sprites/bullet.png", [self.rect.centerx, self.rect.centery], (255, 0, 0)))
             bulletDirection.append(playerDirection)
             bullets[bulletIndex].rect.center = player.rect.center
 
@@ -108,14 +120,40 @@ class Gun:
         if self.isReloading == False:
             self.reload_sfx.play()
             self.isReloading = True
+
+    def display(self):
+        self.img = pygame.image.load(self.sprite)
+        self.img.set_colorkey((255, 255, 255))
+        self.rect = self.img.get_rect()
+        self.rect.size = (self.rect.size[0]*2.5, self.rect.size[1]*2.5)
+
+        if playerDirection == "u":
+            self.img = pygame.transform.rotate(self.img, 90)
+            self.rect.size = (self.rect.size[1], self.rect.size[0])
+            self.rect.midbottom = player.rect.midtop
+
+        elif playerDirection == "r":
+            self.rect.midleft = player.rect.midright
+
+        elif playerDirection == "d":
+            self.img = pygame.transform.rotate(self.img, -90)
+            self.rect.size = (self.rect.size[1], self.rect.size[0])
+            self.rect.midtop = player.rect.midbottom
+
+        elif playerDirection == "l":
+            self.img = pygame.transform.flip(self.img, True, False)
+            self.rect.midright = player.rect.midleft
+
+        self.img = pygame.transform.scale(self.img, self.rect.size)
+        screen.blit(self.img, self.rect)
+
         
 
 weapons = {
-    "shotgun": Gun(7, 5, 1, 3, sfx["shotgun_shoot"], sfx["shotgun_reload"], sfx["shotgun_rakk"])
+    "shotgun": Gun(7, 5, 1, 3, sprites["shotgun"], sfx["shotgun_shoot"], sfx["shotgun_reload"], sfx["shotgun_rakk"])
 }
 
-
-player = Entity((6, 9), "data/sprites/player_right.png", [150, 150])
+player = Entity((6, 9), sprites["player"], [150, 150])
 playerDirection = "r" #u, d, r, l for respectively up, down, right, left
 gunEquipped = weapons["shotgun"]
 score = 0
@@ -135,7 +173,7 @@ enemiesSpawnAreas = [[[0, SCREEN_WIDTH], [-50, -50]], [[SCREEN_WIDTH+50, SCREEN_
 
 def initEnemies():
     for i in range(24):
-        enemies.append(Entity((6, 9), "data/sprites/zombie.png", [-50, -50]))
+        enemies.append(Entity((6, 9), sprites["zombie"], [-50, -50]))
         enemiesHealth.append(10)
         enemySpawn(i)
 
@@ -246,6 +284,7 @@ def run():
             displayAmmo()
 
             gunEquipped.canShootFunc()
+            gunEquipped.display()
 
 
             # detects collisions and shows bullet. Doesn't need to be in a function
@@ -313,8 +352,8 @@ def death():
                 run()
 
     screen.fill((255, 0, 0))
-    screen.blit(font.render("You died", False, (0, 0, 0)), (SCREEN_WIDTH/2-120, SCREEN_HEIGHT/2))
-    screen.blit(font.render("Press ENTER to try again", False, (0, 0, 0)), (20, SCREEN_HEIGHT/2+35))
+    screen.blit(font.render("You died", False, (0, 0, 0)), (SCREEN_WIDTH/2 - 120, SCREEN_HEIGHT/2))
+    screen.blit(font.render("Press ENTER to try again", False, (0, 0, 0)), (SCREEN_WIDTH/2 - 360, SCREEN_HEIGHT/2 + 35))
     displayScore()
 
     pygame.display.update()
