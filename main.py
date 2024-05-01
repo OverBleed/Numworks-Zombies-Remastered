@@ -1,6 +1,7 @@
 import pygame
 import sys
 from random import randint
+from math import pi, cos, sin
 
 pygame.init()
 pygame.font.init()
@@ -26,7 +27,8 @@ sprites = {
     "player": "data/sprites/player.png",
     "zombie": "data/sprites/zombie.png",
     "bullet": "data/sprites/bullet.png",
-    "shotgun": "data/sprites/shotgun.png"
+    "shotgun": "data/sprites/shotgun.png",
+    "shotgun_shell": "data/sprites/shotgun_shell.png"
 }
 
 bgColor = [120, 200, 250]
@@ -47,22 +49,22 @@ class Entity:
         self.pos = pos
         self.color = color # only use when no sprites
         self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
+        self.e_img = pygame.image.load(self.spriteDirectory).convert()
 
-    def display(self):
+    def display(self, scale=5):
         if self.spriteDirectory != None:
-            e_img = pygame.image.load(self.spriteDirectory)
-            e_img = pygame.transform.scale(e_img, (self.size[0]*5, self.size[1]*5))
-            e_img.set_colorkey((255, 255, 255))
-            screen.blit(e_img, (self.pos[0], self.pos[1]))
+            self.e_img = pygame.transform.scale(self.e_img, (self.size[0]*scale, self.size[1]*scale))
+            self.e_img.set_colorkey((255, 255, 255))
+            screen.blit(self.e_img, self.rect)
         else:
-            e_img = pygame.draw.rect(screen, self.color, self.rect)
+            self.e_img = pygame.draw.rect(screen, self.color, self.size)
 
     def updateVelocity(self, velocity=[0, 0]):
         self.pos[0] += velocity[0]
         self.pos[1] += velocity[1]
     
-    def updateRect(self):
-        self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*5, self.size[1]*5)
+    def updateRect(self, scale=5):
+        self.rect = pygame.Rect(self.pos[0], self.pos[1], self.size[0]*scale, self.size[1]*scale)
 
 class Gun:
     def __init__(self, ammoCapacity, baseDamage, waitTimeMinutes, reloadTimeMinutes, sprite, shoot, reload, rakk):
@@ -97,6 +99,12 @@ class Gun:
             bullets.append(Entity((2, 2), "data/sprites/bullet.png", [self.rect.centerx, self.rect.centery], (255, 0, 0)))
             bulletDirection.append(playerDirection)
             bullets[bulletIndex].rect.center = player.rect.center
+
+            shells.append(Entity([20, 8], sprites["shotgun_shell"], [self.rect.centerx, self.rect.centery]))
+            shellOriginalPos.append([self.rect.centerx, self.rect.centery])
+            shellsTime.append(0)
+            if playerDirection == "r": shellAngle.append(5*pi/6)
+            else: shellAngle.append(pi/6)
 
             self.wait = self.waitTimeFrames
             self.canShoot = False
@@ -166,6 +174,11 @@ bulletDirection = []
 bulletDamage = []
 BULLET_SPEED = 9
 
+shells = []
+shellOriginalPos = []
+shellsTime = []
+shellAngle = []
+
 enemies = []
 enemiesHealth = []
 ZOMBIE_SPEED = 0.75
@@ -230,6 +243,13 @@ def enemyMovement(index):
     if enemies[index].rect.top < player.rect.top: enemies[index].updateVelocity([0, ZOMBIE_SPEED])
     else: enemies[index].updateVelocity([0, -ZOMBIE_SPEED])
 
+def shellMovement(index, angle=pi/6):
+    if shellsTime[index] < 42:
+        for i in range(shellsTime[index]):
+            shells[index].pos[0] = (20 * cos(angle)) * (i*0.15) + shellOriginalPos[index][0]
+            shells[index].pos[1] = (0.5 * 9.81 * (i*0.15)**2) + (50 * -sin(angle)*(i*0.15)) + shellOriginalPos[index][1]
+    else: pass
+
 def changeBackgroundColor():
     bgColor[0] += randint(-2, 2)
     if bgColor[0] > 254: bgColor[0] = 254
@@ -277,6 +297,12 @@ def run():
             changeBackgroundColor()
 
             playerMovement()
+
+            for i in range(len(shells)):
+                shellMovement(i, shellAngle[i])
+                shells[i].updateRect(0.6)
+                shells[i].display(0.6)
+                shellsTime[i] += 1
             
             player.display()
             player.updateRect()
@@ -318,6 +344,7 @@ def run():
 
 def death():
     global score, alive, bulletNumber, bulletDirection
+    global shells, shellsTime, shellAngle, shellOriginalPos
     global bullets, enemies, enemiesHealth
 
     for event in pygame.event.get():
@@ -338,6 +365,11 @@ def death():
                 player.pos = [150, 150]
                 gunEquipped.ammo = gunEquipped.ammoCapacity
                 gunEquipped.isReloading = False
+
+                shells = []
+                shellsTime = []
+                shellAngle = []
+                shellOriginalPos = []
 
                 keydown["UP"] = False
                 keydown["RIGHT"] = False
